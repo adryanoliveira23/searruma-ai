@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { email, name, photos, price } = await req.json();
+    const { email, name, photos, price, imageUrl } = await req.json();
 
     if (!email || !name || !photos || !price) {
       return NextResponse.json(
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
             name: name,
             photos: photos,
             price: price,
+            imageUrl: imageUrl || "",
           },
           notification_url:
             "https://amufvgzrxeipylqmcfvx.supabase.co/functions/v1/mercadopago-webhook",

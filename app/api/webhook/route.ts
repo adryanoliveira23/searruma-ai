@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       console.log(`Payment ${paymentId} status: ${status}`);
 
       if (status === "approved") {
-        const { email, name, photos, price } = metadata;
+        const { email, name, photos, price, imageUrl } = metadata;
 
         if (!email) {
           console.error("No email found in payment metadata");
@@ -65,6 +65,7 @@ export async function POST(req: Request) {
               amount: price || "0",
               status: "approved",
               payment_id: paymentId,
+              image_url: imageUrl || null,
               created_at: new Date().toISOString(),
             },
           ]);
