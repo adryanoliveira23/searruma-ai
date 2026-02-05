@@ -1,60 +1,79 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 import { sendWelcomeEmail } from "@/lib/mail";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-const CAKTO_WEBHOOK_SECRET =
-  process.env.CAKTO_WEBHOOK_SECRET || "7cc2963d-cf0c-45a9-a573-578fc0efac65";
-
 export async function POST(req: Request) {
   try {
-    const signature = req.headers.get("x-cakto-signature");
-    const bodyText = await req.text();
-    const body = JSON.parse(bodyText);
+    const body = await req.json();
+    console.log("Mercado Pago Webhook received:", body);
 
-    // Verificar assinatura do webhook
-    const expectedSignature = crypto
-      .createHmac("sha256", CAKTO_WEBHOOK_SECRET)
-      .update(bodyText)
-      .digest("hex");
+    // Mercado Pago envia notificações de diferentes tipos.
+    // Estamos interessados em 'payment'.
+    const { type, data, action } = body;
 
-    if (signature && signature !== expectedSignature) {
-      console.error("Invalid webhook signature");
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-    }
+    if (
+      type === "payment" &&
+      (action === "payment.created" || action === "payment.updated")
+    ) {
+      const paymentId = data.id;
 
-    const { event, data } = body;
-
-    console.log("Webhook received:", event);
-
-    if (event === "payment.approved") {
-      const { customer_email, customer_name, custom_fields } = data;
-
-      // Enviar email de boas-vindas
-      await sendWelcomeEmail(
-        customer_email,
-        customer_name,
-        parseInt(custom_fields?.photos || "3"),
+      // Buscar detalhes do pagamento no Mercado Pago para segurança
+      const mpResponse = await fetch(
+        `https://api.mercadopago.com/v1/payments/${paymentId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+          },
+        },
       );
 
-      // Opcional: Registrar no Supabase
-      try {
-        await supabaseAdmin.from("orders").insert([
-          {
-            email: customer_email,
-            name: customer_name,
-            photos: parseInt(custom_fields?.photos || "3"),
-            amount: custom_fields?.price || "0",
-            status: "approved",
-            created_at: new Date().toISOString(),
-          },
-        ]);
-      } catch (dbError) {
-        console.error("Error logging to Supabase:", dbError);
-        // Não falha o webhook se o banco falhar
+      if (!mpResponse.ok) {
+        console.error("Failed to fetch payment details from MP");
+        return NextResponse.json(
+          { error: "Failed to verify payment" },
+          { status: 500 },
+        );
       }
 
-      console.log(`Payment approved for ${customer_email}`);
+      const paymentData = await mpResponse.json();
+      const { status, metadata } = paymentData;
+
+      console.log(`Payment ${paymentId} status: ${status}`);
+
+      if (status === "approved") {
+        const { email, name, photos, price } = metadata;
+
+        if (!email) {
+          console.error("No email found in payment metadata");
+          return NextResponse.json({ received: true });
+        }
+
+        // Enviar email de boas-vindas
+        await sendWelcomeEmail(
+          email,
+          name || "Cliente",
+          parseInt(photos || "3"),
+        );
+
+        // Registrar no Supabase
+        try {
+          await supabaseAdmin.from("orders").insert([
+            {
+              email: email,
+              name: name || "Cliente",
+              photos: parseInt(photos || "3"),
+              amount: price || "0",
+              status: "approved",
+              payment_id: paymentId,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+        } catch (dbError) {
+          console.error("Error logging to Supabase:", dbError);
+        }
+
+        console.log(`Payment approved and processed for ${email}`);
+      }
     }
 
     return NextResponse.json({ received: true });
