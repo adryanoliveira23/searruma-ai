@@ -11,6 +11,12 @@ export async function POST(req: Request) {
       );
     }
 
+    // Debug: log env var presence
+    console.log(
+      "MP_ACCESS_TOKEN prefix:",
+      process.env.MP_ACCESS_TOKEN?.substring(0, 10),
+    );
+
     // Criar preferência no Mercado Pago
     const response = await fetch(
       "https://api.mercadopago.com/checkout/preferences",
@@ -52,9 +58,14 @@ export async function POST(req: Request) {
     );
 
     const preference = await response.json();
+    console.log("Mercado Pago Response Status:", response.status);
+    console.log(
+      "Mercado Pago Preference Response:",
+      JSON.stringify(preference, null, 2),
+    );
 
     if (!response.ok) {
-      console.error("Mercado Pago Error:", preference);
+      console.error("Mercado Pago Error Details:", preference);
       throw new Error(preference.message || "Erro ao criar preferência");
     }
 

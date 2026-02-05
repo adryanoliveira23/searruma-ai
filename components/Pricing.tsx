@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 const packages = [
   {
@@ -42,30 +42,15 @@ const packages = [
 ];
 
 export default function Pricing() {
-  const [loading, setLoading] = useState<number | null>(null);
+  const router = useRouter();
 
-  const handlePurchase = async (index: number, pkg: (typeof packages)[0]) => {
-    setLoading(index);
-    try {
-      const response = await fetch("/api/create-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: "teste@exemplo.com",
-          name: "Cliente Teste",
-          photos: pkg.photos,
-          price: pkg.price,
-        }),
-      });
-      const data = await response.json();
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      }
-    } catch (error) {
-      console.error("Error:", error);
-    } finally {
-      setLoading(null);
-    }
+  const handlePurchase = (pkg: (typeof packages)[0]) => {
+    const params = new URLSearchParams({
+      photos: pkg.photos.toString(),
+      price: pkg.price,
+      name: pkg.name,
+    });
+    router.push(`/checkout?${params.toString()}`);
   };
 
   return (
@@ -111,13 +96,13 @@ export default function Pricing() {
                 </div>
               </div>
 
-              <ul className="space-y-4 mb-10 flex-grow">
+              <ul className="space-y-4 mb-10 grow">
                 {pkg.features.map((feature, j) => (
                   <li
                     key={j}
                     className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-400"
                   >
-                    <div className="mt-0.5 w-5 h-5 rounded-full bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-[10px] text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+                    <div className="mt-0.5 w-5 h-5 rounded-full bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-[10px] text-indigo-600 dark:text-indigo-400 shrink-0">
                       ✓
                     </div>
                     {feature}
@@ -126,15 +111,14 @@ export default function Pricing() {
               </ul>
 
               <button
-                onClick={() => handlePurchase(i, pkg)}
-                disabled={loading !== null}
+                onClick={() => handlePurchase(pkg)}
                 className={`w-full py-4 rounded-2xl font-black text-sm transition-all active:scale-95 ${
                   pkg.popular
                     ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-600/20"
                     : "bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700"
                 }`}
               >
-                {loading === i ? "Processando..." : `Comprar Pacote`}
+                Comprar Pacote
               </button>
             </div>
           ))}
