@@ -56,6 +56,14 @@ export default function AdminPanel() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
 
+  // Bulk Selection State
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+
+  // Set default status filter to pending
+  useEffect(() => {
+    setStatusFilter("pending");
+  }, []);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === "Adiel&Adryan2026@!") {
@@ -123,25 +131,48 @@ export default function AdminPanel() {
   };
 
   const handleDeleteOrder = async () => {
-    if (!deleteOrderId) return;
+    if (!deleteOrderId && selectedOrders.size === 0) return;
+
+    const idsToDelete = deleteOrderId
+      ? [deleteOrderId]
+      : Array.from(selectedOrders);
 
     try {
       const response = await fetch("/api/admin/delete-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: deleteOrderId }),
+        body: JSON.stringify({ orderIds: idsToDelete }),
       });
 
       if (!response.ok) {
-        throw new Error("Erro ao excluir pedido");
+        throw new Error("Erro ao excluir pedido(s)");
       }
 
-      setOrders(orders.filter((o) => o.id !== deleteOrderId));
+      setOrders(orders.filter((o) => !idsToDelete.includes(o.id)));
+      setSelectedOrders(new Set());
       setShowDeleteModal(false);
       setDeleteOrderId(null);
     } catch (err) {
       console.error("Error deleting order:", err);
-      alert("Erro ao excluir pedido");
+      alert("Erro ao excluir pedido(s)");
+    }
+  };
+
+  const toggleSelectOrder = (id: string) => {
+    const newSelected = new Set(selectedOrders);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedOrders(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedOrders.size === filteredOrders.length) {
+      setSelectedOrders(new Set());
+    } else {
+      setSelectedOrders(new Set(filteredOrders.map((o) => o.id)));
     }
   };
 
@@ -261,9 +292,9 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row">
+    <div className="h-screen bg-[#F8FAFC] flex flex-col md:flex-row overflow-hidden">
       {/* Admin Sidebar */}
-      <aside className="w-full md:w-72 bg-white border-r border-slate-200 p-6 flex flex-col">
+      <aside className="w-full md:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-200 p-6 flex flex-col flex-shrink-0">
         <div className="flex items-center gap-3 mb-10 px-2">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black">
             AD
@@ -306,399 +337,428 @@ export default function AdminPanel() {
       </aside>
 
       {/* Main Admin Content */}
-      <main className="grow p-6 md:p-12 overflow-y-auto">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
-          <div>
-            <h2 className="text-3xl font-black text-slate-900 capitalize tracking-tight">
-              {activeTab === "overview"
-                ? "Dashboard Admin"
-                : activeTab === "generator"
-                  ? "Gerador IA"
-                  : "Pedidos e Logística"}
-            </h2>
-            <p className="text-slate-500 text-sm mt-1">
-              Gerencie a plataforma em tempo real.
-            </p>
-          </div>
-          <div className="flex flex-col md:flex-row gap-2">
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={16}
-                />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar..."
-                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-600 transition-all font-medium dark:text-slate-900 w-full md:w-auto"
-                />
-              </div>
-
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`p-2 border rounded-xl transition-colors ${showFilters ? "bg-indigo-50 border-indigo-200 text-indigo-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                title="Filtros Avançados"
-              >
-                <Filter size={16} />
-              </button>
-
-              <button
-                onClick={fetchOrders}
-                className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600"
-              >
-                <Clock size={16} />
-              </button>
+      <main className="grow flex flex-col h-full overflow-hidden relative">
+        <div className="flex-1 overflow-y-auto p-6 md:p-12">
+          <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 shrink-0">
+            <div>
+              <h2 className="text-3xl font-black text-slate-900 capitalize tracking-tight">
+                {activeTab === "overview"
+                  ? "Dashboard Admin"
+                  : activeTab === "generator"
+                    ? "Gerador IA"
+                    : "Pedidos e Logística"}
+              </h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Gerencie a plataforma em tempo real.
+              </p>
             </div>
-          </div>
-        </header>
-
-        {showFilters && activeTab === "orders" && (
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 mb-6 flex flex-wrap gap-4 items-end animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400">
-                Status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="all">Todos</option>
-                <option value="approved">Pago</option>
-                <option value="pending">Pendente</option>
-                <option value="cancelled">Cancelado</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400">
-                Pacote
-              </label>
-              <select
-                value={packageFilter}
-                onChange={(e) => setPackageFilter(e.target.value)}
-                className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="all">Todos</option>
-                <option value="1">1 Foto</option>
-                <option value="3">3 Fotos</option>
-                <option value="5">5 Fotos</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400">
-                Data do Pedido
-              </label>
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            {(statusFilter !== "all" ||
-              packageFilter !== "all" ||
-              dateFilter !== "") && (
-              <button
-                onClick={() => {
-                  setStatusFilter("all");
-                  setPackageFilter("all");
-                  setDateFilter("");
-                }}
-                className="mb-1 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-1"
-              >
-                <X size={14} /> Limpar Filtros
-              </button>
-            )}
-          </div>
-        )}
-
-        {activeTab === "overview" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                label: "Vendas Totais",
-                value: `R$ ${stats.totalSales.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-                icon: "💰",
-                color: "bg-emerald-50 text-emerald-600",
-              },
-              {
-                label: "Identificações",
-                value: stats.activeUsers.toString(),
-                icon: "👤",
-                color: "bg-blue-50 text-blue-600",
-              },
-              {
-                label: "Fotos Solicitadas",
-                value: stats.processedPhotos.toString(),
-                icon: "⚡",
-                color: "bg-amber-50 text-amber-600",
-              },
-              {
-                label: "Taxa de Pagos",
-                value: `${stats.conversionRate}%`,
-                icon: "📈",
-                color: "bg-purple-50 text-purple-600",
-              },
-            ].map((stat, i) => (
-              <div
-                key={i}
-                className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div
-                  className={`w-12 h-12 ${stat.color} rounded-2xl flex items-center justify-center text-xl mb-4`}
-                >
-                  {stat.icon}
+            <div className="flex flex-col md:flex-row gap-2">
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={16}
+                  />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar..."
+                    className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-600 transition-all font-medium dark:text-slate-900 w-full md:w-auto"
+                  />
                 </div>
-                <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest">
-                  {stat.label}
-                </p>
-                <p className="text-2xl font-black text-slate-900 mt-1">
-                  {stat.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
 
-        {/* Tab content placeholders */}
-        {activeTab === "generator" && <AdminGenerator />}
-        {activeTab === "orders" && (
-          <>
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                        Cliente
-                      </th>
-                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                        Email
-                      </th>
-                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                        Foto
-                      </th>
-                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                        Comprovante
-                      </th>
-                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                        Pacote
-                      </th>
-                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                        Data
-                      </th>
-                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest text-right">
-                        Ação
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {loading ? (
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`p-2 border rounded-xl transition-colors ${showFilters ? "bg-indigo-50 border-indigo-200 text-indigo-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                  title="Filtros Avançados"
+                >
+                  <Filter size={16} />
+                </button>
+
+                <button
+                  onClick={fetchOrders}
+                  className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600"
+                >
+                  <Clock size={16} />
+                </button>
+              </div>
+              {selectedOrders.size > 0 && (
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-bold text-sm"
+                >
+                  <Trash2 size={16} /> Delete ({selectedOrders.size})
+                </button>
+              )}
+            </div>
+          </header>
+
+          {showFilters && activeTab === "orders" && (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 mb-6 flex flex-wrap gap-4 items-end animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-slate-400">
+                  Status
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Todos</option>
+                  <option value="approved">Pago</option>
+                  <option value="pending">Pendente</option>
+                  <option value="cancelled">Cancelado</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-slate-400">
+                  Pacote
+                </label>
+                <select
+                  value={packageFilter}
+                  onChange={(e) => setPackageFilter(e.target.value)}
+                  className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Todos</option>
+                  <option value="1">1 Foto</option>
+                  <option value="3">3 Fotos</option>
+                  <option value="5">5 Fotos</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-slate-400">
+                  Data do Pedido
+                </label>
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {(statusFilter !== "all" ||
+                packageFilter !== "all" ||
+                dateFilter !== "") && (
+                <button
+                  onClick={() => {
+                    setStatusFilter("all");
+                    setPackageFilter("all");
+                    setDateFilter("");
+                  }}
+                  className="mb-1 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-1"
+                >
+                  <X size={14} /> Limpar Filtros
+                </button>
+              )}
+            </div>
+          )}
+
+          {activeTab === "overview" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  label: "Vendas Totais",
+                  value: `R$ ${stats.totalSales.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+                  icon: "💰",
+                  color: "bg-emerald-50 text-emerald-600",
+                },
+                {
+                  label: "Identificações",
+                  value: stats.activeUsers.toString(),
+                  icon: "👤",
+                  color: "bg-blue-50 text-blue-600",
+                },
+                {
+                  label: "Fotos Solicitadas",
+                  value: stats.processedPhotos.toString(),
+                  icon: "⚡",
+                  color: "bg-amber-50 text-amber-600",
+                },
+                {
+                  label: "Taxa de Pagos",
+                  value: `${stats.conversionRate}%`,
+                  icon: "📈",
+                  color: "bg-purple-50 text-purple-600",
+                },
+              ].map((stat, i) => (
+                <div
+                  key={i}
+                  className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div
+                    className={`w-12 h-12 ${stat.color} rounded-2xl flex items-center justify-center text-xl mb-4`}
+                  >
+                    {stat.icon}
+                  </div>
+                  <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest">
+                    {stat.label}
+                  </p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">
+                    {stat.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Tab content placeholders */}
+          {activeTab === "generator" && <AdminGenerator />}
+          {activeTab === "orders" && (
+            <>
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <td
-                          colSpan={8}
-                          className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse"
-                        >
-                          Carregando pedidos...
-                        </td>
+                        <th className="px-6 py-4">
+                          <input
+                            type="checkbox"
+                            checked={
+                              filteredOrders.length > 0 &&
+                              selectedOrders.size === filteredOrders.length
+                            }
+                            onChange={toggleSelectAll}
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                        </th>
+                        <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                          Cliente
+                        </th>
+                        <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                          Email
+                        </th>
+                        <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                          Foto
+                        </th>
+                        <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                          Comprovante
+                        </th>
+                        <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                          Pacote
+                        </th>
+                        <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                          Data
+                        </th>
+                        <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest text-right">
+                          Ação
+                        </th>
                       </tr>
-                    ) : filteredOrders.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest"
-                        >
-                          Nenhum pedido encontrado.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredOrders.map((order) => (
-                        <tr
-                          key={order.id}
-                          className="hover:bg-slate-50 transition-colors group"
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black">
-                                {order.name.charAt(0)}
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-slate-900">
-                                  {order.name}
-                                </p>
-                                {order.whatsapp && (
-                                  <p className="text-[10px] text-emerald-600 font-bold">
-                                    WA: {order.whatsapp}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-xs font-medium text-slate-500">
-                              {order.email}
-                            </p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <select
-                              value={order.status}
-                              onChange={(e) =>
-                                handleStatusChange(order.id, e.target.value)
-                              }
-                              className={`px-3 py-1 text-[10px] font-black rounded-full border-none focus:ring-2 focus:ring-offset-1 cursor-pointer transition-all appearance-none pr-8 bg-no-repeat bg-[right_0.5rem_center] bg-[length:0.75em_0.75em] ${
-                                order.status === "approved"
-                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 focus:ring-emerald-500"
-                                  : order.status === "pending"
-                                    ? "bg-amber-100 text-amber-700 hover:bg-amber-200 focus:ring-amber-500"
-                                    : "bg-red-100 text-red-700 hover:bg-red-200 focus:ring-red-500"
-                              }`}
-                              style={{
-                                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                              }}
-                            >
-                              <option value="approved">PAGO</option>
-                              <option value="pending">PENDENTE</option>
-                              <option value="cancelled">CANCELADO</option>
-                            </select>
-                            {order.status === "pending" &&
-                              new Date().getTime() -
-                                new Date(order.created_at).getTime() >
-                                3600000 && (
-                                <span className="block mt-1 text-[9px] font-black text-red-500 animate-pulse">
-                                  PIX ABANDONADO (&gt;1H)
-                                </span>
-                              )}
-                          </td>
-                          <td className="px-6 py-4">
-                            {order.image_url ? (
-                              <a
-                                href={order.image_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 transition-colors"
-                              >
-                                <img
-                                  src={order.image_url}
-                                  alt="Original"
-                                  className="w-full h-full object-cover"
-                                />
-                              </a>
-                            ) : (
-                              <span className="text-xs text-slate-400 font-medium">
-                                -
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            {order.receipt_url ? (
-                              <a
-                                href={order.receipt_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 transition-colors"
-                              >
-                                <img
-                                  src={order.receipt_url}
-                                  alt="Comprovante"
-                                  className="w-full h-full object-cover"
-                                />
-                              </a>
-                            ) : (
-                              <span className="text-xs text-slate-400 font-medium">
-                                -
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-bold text-slate-900">
-                              {order.photos} Fotos
-                            </p>
-                            <p className="text-[10px] text-slate-400">
-                              R$ {order.amount}
-                            </p>
-                          </td>
-                          <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                            {new Date(order.created_at).toLocaleDateString(
-                              "pt-BR",
-                              {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              },
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-right space-x-2 flex justify-end items-center">
-                            {order.whatsapp && (
-                              <a
-                                href={`https://wa.me/${order.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${order.name}, vimos que você gerou um Pix para o SeArrumaAI mas não finalizou o pagamento. Podemos te ajudar em algo?`)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all"
-                                title="Contato WhatsApp"
-                              >
-                                <MessageCircle size={18} />
-                              </a>
-                            )}
-                            <button
-                              onClick={() => {
-                                setDeleteOrderId(order.id);
-                                setShowDeleteModal(true);
-                              }}
-                              className="inline-flex p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
-                              title="Remover Pedido"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {loading ? (
+                        <tr>
+                          <td
+                            colSpan={8}
+                            className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse"
+                          >
+                            Carregando pedidos...
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Confirmation Modal */}
-            {showDeleteModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-                <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
-                  <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 mb-4 mx-auto">
-                    <AlertCircle size={24} />
-                  </div>
-                  <h3 className="text-lg font-black text-slate-900 text-center mb-2">
-                    Confirmar Exclusão
-                  </h3>
-                  <p className="text-sm text-slate-500 text-center mb-6">
-                    Tem certeza que deseja remover este pedido? Esta ação não
-                    pode ser desfeita.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setShowDeleteModal(false)}
-                      className="w-full py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-all"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={handleDeleteOrder}
-                      className="w-full py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
-                    >
-                      Excluir
-                    </button>
-                  </div>
+                      ) : filteredOrders.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={8}
+                            className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest"
+                          >
+                            Nenhum pedido encontrado.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredOrders.map((order) => (
+                          <tr
+                            key={order.id}
+                            className="hover:bg-slate-50 transition-colors group"
+                          >
+                            <td className="px-6 py-4">
+                              <input
+                                type="checkbox"
+                                checked={selectedOrders.has(order.id)}
+                                onChange={() => toggleSelectOrder(order.id)}
+                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black">
+                                  {order.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-slate-900">
+                                    {order.name}
+                                  </p>
+                                  {order.whatsapp && (
+                                    <p className="text-[10px] text-emerald-600 font-bold">
+                                      WA: {order.whatsapp}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <p className="text-xs font-medium text-slate-500">
+                                {order.email}
+                              </p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <select
+                                value={order.status}
+                                onChange={(e) =>
+                                  handleStatusChange(order.id, e.target.value)
+                                }
+                                className={`px-3 py-1 text-[10px] font-black rounded-full border-none focus:ring-2 focus:ring-offset-1 cursor-pointer transition-all appearance-none pr-8 bg-no-repeat bg-[right_0.5rem_center] bg-[length:0.75em_0.75em] ${
+                                  order.status === "approved"
+                                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 focus:ring-emerald-500"
+                                    : order.status === "pending"
+                                      ? "bg-amber-100 text-amber-700 hover:bg-amber-200 focus:ring-amber-500"
+                                      : "bg-red-100 text-red-700 hover:bg-red-200 focus:ring-red-500"
+                                }`}
+                                style={{
+                                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                                }}
+                              >
+                                <option value="approved">PAGO</option>
+                                <option value="pending">PENDENTE</option>
+                                <option value="cancelled">CANCELADO</option>
+                              </select>
+                              {order.status === "pending" &&
+                                new Date().getTime() -
+                                  new Date(order.created_at).getTime() >
+                                  3600000 && (
+                                  <span className="block mt-1 text-[9px] font-black text-red-500 animate-pulse">
+                                    PIX ABANDONADO (&gt;1H)
+                                  </span>
+                                )}
+                            </td>
+                            <td className="px-6 py-4">
+                              {order.image_url ? (
+                                <a
+                                  href={order.image_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 transition-colors"
+                                >
+                                  <img
+                                    src={order.image_url}
+                                    alt="Original"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </a>
+                              ) : (
+                                <span className="text-xs text-slate-400 font-medium">
+                                  -
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              {order.receipt_url ? (
+                                <a
+                                  href={order.receipt_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 transition-colors"
+                                >
+                                  <img
+                                    src={order.receipt_url}
+                                    alt="Comprovante"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </a>
+                              ) : (
+                                <span className="text-xs text-slate-400 font-medium">
+                                  -
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              <p className="text-sm font-bold text-slate-900">
+                                {order.photos} Fotos
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                R$ {order.amount}
+                              </p>
+                            </td>
+                            <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                              {new Date(order.created_at).toLocaleDateString(
+                                "pt-BR",
+                                {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                },
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right space-x-2 flex justify-end items-center">
+                              {order.whatsapp && (
+                                <a
+                                  href={`https://wa.me/${order.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${order.name}, vimos que você gerou um Pix para o SeArrumaAI mas não finalizou o pagamento. Podemos te ajudar em algo?`)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all"
+                                  title="Contato WhatsApp"
+                                >
+                                  <MessageCircle size={18} />
+                                </a>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setDeleteOrderId(order.id);
+                                  setShowDeleteModal(true);
+                                }}
+                                className="inline-flex p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
+                                title="Remover Pedido"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            )}
-          </>
-        )}
+
+              {/* Confirmation Modal */}
+              {showDeleteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+                  <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
+                    <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 mb-4 mx-auto">
+                      <AlertCircle size={24} />
+                    </div>
+                    <h3 className="text-lg font-black text-slate-900 text-center mb-2">
+                      Confirmar Exclusão
+                    </h3>
+                    <p className="text-sm text-slate-500 text-center mb-6">
+                      Tem certeza que deseja remover este pedido? Esta ação não
+                      pode ser desfeita.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setShowDeleteModal(false)}
+                        className="w-full py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-all"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleDeleteOrder}
+                        className="w-full py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </main>
     </div>
   );
