@@ -1,3 +1,5 @@
+"use client";
+
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import Pricing from "@/components/Pricing";
@@ -165,7 +167,7 @@ export default function Home() {
               ].map((item, i) => (
                 <div
                   key={i}
-                  className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-indigo-600/5 text-center group hover:border-indigo-600/30 transition-all transition-duration-500"
+                  className="bg-white dark:bg-slate-900 p-8 rounded-4xl border border-slate-100 dark:border-slate-800 shadow-xl shadow-indigo-600/5 text-center group hover:border-indigo-600/30 transition-all duration-500"
                 >
                   <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-3xl mb-6 mx-auto group-hover:scale-110 transition-transform">
                     {item.icon}
