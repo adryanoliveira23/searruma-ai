@@ -67,8 +67,7 @@ export async function POST(req: Request) {
 
     if (dbError) {
       console.error("Erro ao salvar pedido inicial:", dbError);
-      // Não travamos o fluxo do usuário se falhar em salvar,
-      // mas o admin pode não ver até o webhook chegar.
+      throw new Error(`Erro ao registrar pedido: ${dbError.message}`);
     }
 
     return NextResponse.json({

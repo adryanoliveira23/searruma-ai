@@ -34,10 +34,12 @@ export async function POST(req: Request) {
       success: true,
       order: data,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Approve payment API error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Erro interno";
     return NextResponse.json(
-      { success: false, error: error.message || "Erro interno" },
+      { success: false, error: errorMessage },
       { status: 500 },
     );
   }

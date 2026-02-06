@@ -13,11 +13,15 @@ import {
   Sparkles,
   CheckCircle2,
   Clock,
+  Eye,
+  EyeOff,
+  Filter,
+  X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface Order {
-  id: number;
+  id: string;
   email: string;
   name: string;
   photos: number;
@@ -33,6 +37,7 @@ interface Order {
 export default function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [activeTab, setActiveTab] = useState<
     "overview" | "users" | "orders" | "generator"
@@ -41,10 +46,17 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Advanced Filters State
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [packageFilter, setPackageFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === "Adiel&Adryan2026@!") {
       setIsAuthenticated(true);
+      localStorage.setItem("admin_auth", "true");
       setLoginError("");
     } else {
       setLoginError("Senha administrativa incorreta.");
@@ -52,12 +64,36 @@ export default function AdminPanel() {
   };
 
   useEffect(() => {
+    const auth = localStorage.getItem("admin_auth");
+    if (auth === "true") {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (isAuthenticated) {
       fetchOrders();
+
+      // Real-time listener for "automatic" updates
+      const channel = supabase
+        .channel("orders_changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "orders" },
+          (payload) => {
+            console.log("Change received!", payload);
+            fetchOrders(); // Recarrega tudo para manter ordenação e filtros
+          },
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [isAuthenticated]);
 
-  const handleApprovePayment = async (orderId: number) => {
+  const handleApprovePayment = async (orderId: string) => {
     if (!confirm("Confirmar que o pagamento foi recebido?")) return;
 
     try {
@@ -93,20 +129,44 @@ export default function AdminPanel() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+      console.log("Admin: Pedidos carregados:", data?.length);
       setOrders(data || []);
-    } catch (err) {
-      console.error("Error fetching orders:", err);
+    } catch (err: unknown) {
+      const error = err as {
+        message?: string;
+        details?: string;
+        hint?: string;
+      };
+      console.error("Error fetching orders:", error.message || err);
+      if (error.details) console.error("Details:", error.details);
+      if (error.hint) console.error("Hint:", error.hint);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredOrders = orders.filter(
-    (order) =>
-      order.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.payment_id?.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch =
+      order.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.payment_id?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus =
+      statusFilter === "all" ? true : order.status === statusFilter;
+
+    const matchesPackage =
+      packageFilter === "all"
+        ? true
+        : order.photos.toString() === packageFilter;
+
+    const matchesDate =
+      dateFilter === ""
+        ? true
+        : new Date(order.created_at).toLocaleDateString("pt-BR") ===
+          new Date(dateFilter).toLocaleDateString("pt-BR");
+
+    return matchesSearch && matchesStatus && matchesPackage && matchesDate;
+  });
 
   const stats = {
     totalSales: orders
@@ -135,7 +195,7 @@ export default function AdminPanel() {
               <Lock size={32} />
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Admin Focus
+              Admin Searruma.ai
             </h1>
             <p className="text-slate-500 text-sm mt-1">
               Acesso exclusivo para administradores
@@ -146,13 +206,22 @@ export default function AdminPanel() {
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
                 Senha Mestra
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 px-5 py-4 rounded-2xl focus:ring-4 focus:ring-slate-600/5 focus:border-slate-900 outline-none transition-all dark:text-slate-900"
-                placeholder="Introduza a chave mestre"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-5 py-4 rounded-2xl focus:ring-4 focus:ring-slate-600/5 focus:border-slate-900 outline-none transition-all dark:text-slate-900"
+                  placeholder="Introduza a chave mestre"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
             {loginError && (
               <p className="text-red-500 text-xs font-bold text-center">
@@ -203,7 +272,10 @@ export default function AdminPanel() {
         </nav>
 
         <button
-          onClick={() => setIsAuthenticated(false)}
+          onClick={() => {
+            setIsAuthenticated(false);
+            localStorage.removeItem("admin_auth");
+          }}
           className="mt-auto flex items-center gap-3 px-4 py-3 text-red-500 text-sm font-bold hover:bg-red-50 rounded-xl transition-all"
         >
           <LogOut size={20} /> Sair
@@ -225,28 +297,102 @@ export default function AdminPanel() {
               Gerencie a plataforma em tempo real.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={16}
-              />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar cliente ou e-mail..."
-                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-600 transition-all font-medium dark:text-slate-900"
-              />
+          <div className="flex flex-col md:flex-row gap-2">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={16}
+                />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar..."
+                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-600 transition-all font-medium dark:text-slate-900 w-full md:w-auto"
+                />
+              </div>
+
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`p-2 border rounded-xl transition-colors ${showFilters ? "bg-indigo-50 border-indigo-200 text-indigo-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                title="Filtros Avançados"
+              >
+                <Filter size={16} />
+              </button>
+
+              <button
+                onClick={fetchOrders}
+                className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600"
+              >
+                <Clock size={16} />
+              </button>
             </div>
-            <button
-              onClick={fetchOrders}
-              className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600"
-            >
-              <Clock size={16} />
-            </button>
           </div>
         </header>
+
+        {showFilters && activeTab === "orders" && (
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 mb-6 flex flex-wrap gap-4 items-end animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-slate-400">
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="all">Todos</option>
+                <option value="approved">Pago</option>
+                <option value="pending">Pendente</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-slate-400">
+                Pacote
+              </label>
+              <select
+                value={packageFilter}
+                onChange={(e) => setPackageFilter(e.target.value)}
+                className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="all">Todos</option>
+                <option value="1">1 Foto</option>
+                <option value="3">3 Fotos</option>
+                <option value="5">5 Fotos</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-slate-400">
+                Data do Pedido
+              </label>
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            {(statusFilter !== "all" ||
+              packageFilter !== "all" ||
+              dateFilter !== "") && (
+              <button
+                onClick={() => {
+                  setStatusFilter("all");
+                  setPackageFilter("all");
+                  setDateFilter("");
+                }}
+                className="mb-1 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-1"
+              >
+                <X size={14} /> Limpar Filtros
+              </button>
+            )}
+          </div>
+        )}
 
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -308,7 +454,13 @@ export default function AdminPanel() {
                       Cliente
                     </th>
                     <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Fotos (Original / Comprovante)
+                      Email
+                    </th>
+                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                      Foto Original
+                    </th>
+                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                      Comprovante
                     </th>
                     <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
                       Status
@@ -328,7 +480,7 @@ export default function AdminPanel() {
                   {loading ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={8}
                         className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse"
                       >
                         Carregando pedidos...
@@ -337,7 +489,7 @@ export default function AdminPanel() {
                   ) : filteredOrders.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={8}
                         className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest"
                       >
                         Nenhum pedido encontrado.
@@ -358,9 +510,6 @@ export default function AdminPanel() {
                               <p className="text-sm font-bold text-slate-900">
                                 {order.name}
                               </p>
-                              <p className="text-[10px] text-slate-400">
-                                {order.email}
-                              </p>
                               {order.whatsapp && (
                                 <p className="text-[10px] text-emerald-600 font-bold">
                                   WA: {order.whatsapp}
@@ -370,65 +519,64 @@ export default function AdminPanel() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex gap-2">
-                            {order.image_url ? (
-                              <a
-                                href={order.image_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="relative block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-indigo-600 transition-all group-hover:scale-105"
-                                title="Foto Original"
-                              >
-                                <img
-                                  src={order.image_url}
-                                  alt="Original"
-                                  className="w-full h-full object-cover"
+                          <p className="text-xs font-medium text-slate-500">
+                            {order.email}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4">
+                          {order.image_url ? (
+                            <a
+                              href={order.image_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-indigo-600 transition-all group-hover:scale-105"
+                              title="Foto Original"
+                            >
+                              <img
+                                src={order.image_url}
+                                alt="Original"
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                <ExternalLink
+                                  size={12}
+                                  className="text-white"
                                 />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                  <ExternalLink
-                                    size={12}
-                                    className="text-white"
-                                  />
-                                </div>
-                              </a>
-                            ) : (
-                              <div className="w-12 h-12 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300">
-                                <AlertCircle size={14} />
                               </div>
-                            )}
-
-                            {order.receipt_url ? (
-                              <a
-                                href={order.receipt_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="relative block w-12 h-12 rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50 hover:ring-2 hover:ring-emerald-600 transition-all group-hover:scale-105"
-                                title="Ver Comprovante"
-                              >
-                                <img
-                                  src={order.receipt_url}
-                                  alt="Comprovante"
-                                  className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-emerald-600/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                  <CreditCard
-                                    size={12}
-                                    className="text-white"
-                                  />
-                                </div>
-                              </a>
-                            ) : (
-                              <div
-                                className="w-12 h-12 rounded-lg bg-amber-50 border border-dashed border-amber-200 flex flex-col items-center justify-center text-amber-400"
-                                title="Sem Comprovante"
-                              >
-                                <CreditCard size={14} />
-                                <span className="text-[8px] font-black">
-                                  N/A
-                                </span>
+                            </a>
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300">
+                              <AlertCircle size={14} />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {order.receipt_url ? (
+                            <a
+                              href={order.receipt_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative block w-12 h-12 rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50 hover:ring-2 hover:ring-emerald-600 transition-all group-hover:scale-105"
+                              title="Ver Comprovante"
+                            >
+                              <img
+                                src={order.receipt_url}
+                                alt="Comprovante"
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-emerald-600/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                <CreditCard size={12} className="text-white" />
                               </div>
-                            )}
-                          </div>
+                            </a>
+                          ) : (
+                            <div
+                              className="w-12 h-12 rounded-lg bg-amber-50 border border-dashed border-amber-200 flex flex-col items-center justify-center text-amber-400"
+                              title="Sem Comprovante"
+                            >
+                              <CreditCard size={14} />
+                              <span className="text-[8px] font-black">N/A</span>
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <span
@@ -442,7 +590,9 @@ export default function AdminPanel() {
                           >
                             {order.status === "approved"
                               ? "PAGO"
-                              : order.status.toUpperCase()}
+                              : order.status === "pending"
+                                ? "PENDENTE"
+                                : "CANCELADO"}
                           </span>
                           {order.status === "pending" &&
                             new Date().getTime() -
