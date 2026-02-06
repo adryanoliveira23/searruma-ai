@@ -87,7 +87,7 @@ export default function FloatingSupport() {
               rel="noopener noreferrer"
               className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm transition-all active:scale-95"
             >
-              Falar com Humano no WhatsApp
+              Atendimento Humano no WhatsApp
             </a>
           </div>
         </div>
