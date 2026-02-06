@@ -9,23 +9,23 @@ export default function Hero() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div className="lg:grid lg:grid-cols-12 lg:gap-16 items-center">
-          <div className="lg:col-span-7 space-y-8">
+          <div className="lg:col-span-7 space-y-8 text-center lg:text-left">
             <div>
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1]">
                 Transforme suas fotos em <br />
-                <span className="bg-clip-text text-transparent bg-linear-to-r from-indigo-600 to-amber-500">
+                <span className="bg-clip-text text-transparent bg-linear-to-r from-indigo-600 to-amber-500 whitespace-nowrap lg:whitespace-normal">
                   Momentos Mágicos
                 </span>
               </h1>
             </div>
 
-            <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+            <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
               Crie fotos profissionais de aniversário com qualidade de estúdio
               em segundos. Nossa IA avançada preserva sua essência enquanto
               reconstrói o cenário perfeito.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <div className="flex flex-col sm:flex-row gap-4 pt-4 justify-center lg:justify-start">
               <Link
                 href="#pricing"
                 className="inline-flex items-center justify-center px-8 py-4 rounded-2xl text-lg font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-600/30 transition-all hover:-translate-y-1 active:scale-95"
@@ -40,7 +40,7 @@ export default function Hero() {
               </Link>
             </div>
 
-            <div className="flex items-center gap-4 pt-6 text-sm text-slate-500">
+            <div className="flex items-center gap-4 pt-6 text-sm text-slate-500 justify-center lg:justify-start">
               <div className="flex -space-x-3">
                 {[1, 2, 3, 4].map((i) => (
                   <img

@@ -32,6 +32,12 @@ function CheckoutForm() {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pixData, setPixData] = useState<{
+    qrcode: string;
+    qrcode_base64: string;
+    paymentId: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,6 +74,30 @@ function CheckoutForm() {
     } = supabase.storage.from("user-images").getPublicUrl(filePath);
 
     return publicUrl;
+  };
+
+  const handleCopyPix = () => {
+    if (pixData?.qrcode) {
+      navigator.clipboard.writeText(pixData.qrcode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const checkPaymentStatus = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("status")
+        .eq("payment_id", id)
+        .single();
+
+      if (data?.status === "approved") {
+        window.location.href = "/dashboard?payment=success";
+      }
+    } catch (err) {
+      console.error("Error checking status:", err);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,8 +137,20 @@ function CheckoutForm() {
 
       const data = await response.json();
 
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (data.pix) {
+        setPixData({
+          qrcode: data.pix.qrcode,
+          qrcode_base64: data.pix.qrcode_base64,
+          paymentId: data.paymentId,
+        });
+
+        // Iniciar polling
+        const interval = setInterval(() => {
+          checkPaymentStatus(data.paymentId);
+        }, 5000);
+
+        // Limpar interval após 10 minutos ou redirecionamento
+        setTimeout(() => clearInterval(interval), 600000);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
@@ -128,151 +170,217 @@ function CheckoutForm() {
           Preencha seus dados e escolha a foto que deseja transformar.
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
-                Nome Completo
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
-                  <User size={16} />
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="block w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 outline-none transition-all dark:text-white text-sm"
-                  placeholder="Seu nome"
-                />
+        {pixData ? (
+          <div className="space-y-8 animate-in fade-in zoom-in duration-500">
+            <div className="text-center space-y-4">
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 p-4 rounded-2xl inline-block mx-auto mb-4">
+                <CheckCircle2 size={32} className="text-emerald-500 mx-auto" />
               </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                Pagamento PIX Gerado!
+              </h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">
+                Escaneie o QR Code abaixo ou copie o código para pagar no seu
+                banco.
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
-                E-mail
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
-                  <Mail size={16} />
-                </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 outline-none transition-all dark:text-white text-sm"
-                  placeholder="Seu melhor e-mail"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
-              Sua Foto Principal
-            </label>
-            <div
-              onClick={() => !imagePreview && fileInputRef.current?.click()}
-              className={`relative border-2 border-dashed rounded-3xl p-8 transition-all cursor-pointer group flex flex-col items-center justify-center text-center ${
-                imagePreview
-                  ? "border-emerald-500/50 bg-emerald-50/10"
-                  : "border-slate-200 dark:border-slate-800 hover:border-indigo-600/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-              }`}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/*"
-                className="hidden"
+            <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 mx-auto max-w-[280px]">
+              <img
+                src={`data:image/jpeg;base64,${pixData.qrcode_base64}`}
+                alt="QR Code PIX"
+                className="w-full aspect-square"
               />
-
-              {imagePreview ? (
-                <div className="relative w-full">
-                  <div className="relative aspect-square max-w-[200px] mx-auto rounded-2xl overflow-hidden shadow-xl ring-4 ring-emerald-500/20">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setImageFile(null);
-                        setImagePreview(null);
-                      }}
-                      className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-lg transition-colors"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <p className="mt-4 text-emerald-600 dark:text-emerald-400 text-xs font-black flex items-center justify-center gap-1">
-                    <CheckCircle2 size={14} /> FOTO SELECIONADA
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <Upload size={28} />
-                  </div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">
-                    Toque para selecionar sua foto
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Formatos suportados: JPG, PNG (Max 10MB)
-                  </p>
-                </>
-              )}
             </div>
-          </div>
 
-          {error && (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 animate-shake">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || uploading}
-            className="w-full relative group overflow-hidden flex justify-center py-5 px-4 border border-transparent rounded-2xl shadow-xl shadow-indigo-600/25 text-base font-black text-white bg-indigo-600 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
-          >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="animate-spin" size={20} />
-                {uploading ? "Subindo Foto..." : "Processando..."}
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                Pagar com PIX <ArrowRight size={20} />
-              </span>
-            )}
-          </button>
-
-          <div className="flex flex-col items-center gap-4 pt-4">
-            <div className="flex items-center gap-6">
-              <div className="flex flex-col items-center gap-1">
-                <ShieldCheck className="text-emerald-500" size={24} />
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                  Seguro
-                </span>
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl break-all">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                  CÓDIGO PIX (COPIA E COLA)
+                </p>
+                <p className="text-xs font-mono dark:text-white line-clamp-2">
+                  {pixData.qrcode}
+                </p>
               </div>
-              <div className="flex flex-col items-center gap-1">
-                <Zap className="text-amber-500" size={24} />
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                  Instantâneo
-                </span>
-              </div>
+
+              <button
+                onClick={handleCopyPix}
+                className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-95 ${
+                  copied
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                    : "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700"
+                }`}
+              >
+                {copied ? (
+                  <>
+                    <CheckCircle2 size={18} /> COPIADO COM SUCESSO!
+                  </>
+                ) : (
+                  <>
+                    <Zap size={18} /> COPIAR CÓDIGO PIX
+                  </>
+                )}
+              </button>
             </div>
-            <p className="text-[11px] text-slate-400 text-center max-w-[250px]">
-              Ao clicar em pagar, você será redirecionado para o ambiente seguro
-              do Mercado Pago.
+
+            <div className="flex items-center gap-4 p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 rounded-2xl">
+              <Loader2 className="animate-spin text-amber-500" size={20} />
+              <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                Aguardando confirmação do pagamento...
+              </p>
+            </div>
+
+            <p className="text-center text-[11px] text-slate-400">
+              Assim que o pagamento for confirmado, você será redirecionado
+              automaticamente para o processamento das fotos.
             </p>
           </div>
-        </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                  Nome Completo
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
+                    <User size={16} />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="block w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 outline-none transition-all dark:text-white text-sm"
+                    placeholder="Seu nome"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                  E-mail
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
+                    <Mail size={16} />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 outline-none transition-all dark:text-white text-sm"
+                    placeholder="Seu melhor e-mail"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                Sua Foto Principal
+              </label>
+              <div
+                onClick={() => !imagePreview && fileInputRef.current?.click()}
+                className={`relative border-2 border-dashed rounded-3xl p-8 transition-all cursor-pointer group flex flex-col items-center justify-center text-center ${
+                  imagePreview
+                    ? "border-emerald-500/50 bg-emerald-50/10"
+                    : "border-slate-200 dark:border-slate-800 hover:border-indigo-600/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                }`}
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden"
+                />
+
+                {imagePreview ? (
+                  <div className="relative w-full">
+                    <div className="relative aspect-square max-w-[200px] mx-auto rounded-2xl overflow-hidden shadow-xl ring-4 ring-emerald-500/20">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setImageFile(null);
+                          setImagePreview(null);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-lg transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <p className="mt-4 text-emerald-600 dark:text-emerald-400 text-xs font-black flex items-center justify-center gap-1">
+                      <CheckCircle2 size={14} /> FOTO SELECIONADA
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <Upload size={28} />
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      Toque para selecionar sua foto
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Formatos suportados: JPG, PNG (Max 10MB)
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 animate-shake">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || uploading}
+              className="w-full relative group overflow-hidden flex justify-center py-5 px-4 border border-transparent rounded-2xl shadow-xl shadow-indigo-600/25 text-base font-black text-white bg-indigo-600 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="animate-spin" size={20} />
+                  {uploading ? "Subindo Foto..." : "Processando..."}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  Pagar com PIX <ArrowRight size={20} />
+                </span>
+              )}
+            </button>
+
+            <div className="flex flex-col items-center gap-4 pt-4">
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col items-center gap-1">
+                  <ShieldCheck className="text-emerald-500" size={24} />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                    Seguro
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <Zap className="text-amber-500" size={24} />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                    Instantâneo
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 text-center max-w-[250px]">
+                Escaneie o QR Code ou copie a chave PIX para finalizar.
+              </p>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Summary Side */}

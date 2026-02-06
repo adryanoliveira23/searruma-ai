@@ -17,63 +17,52 @@ export async function POST(req: Request) {
       process.env.MP_ACCESS_TOKEN?.substring(0, 10),
     );
 
-    // Criar preferência no Mercado Pago
-    const response = await fetch(
-      "https://api.mercadopago.com/checkout/preferences",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          items: [
-            {
-              title: `SeArrumaAI - ${photos} fotos`,
-              quantity: 1,
-              unit_price: Number(price),
-              currency_id: "BRL",
-            },
-          ],
-          payer: {
-            email: email,
-            name: name,
-          },
-          metadata: {
-            email: email,
-            name: name,
-            photos: photos,
-            price: price,
-            imageUrl: imageUrl || "",
-          },
-          notification_url:
-            "https://amufvgzrxeipylqmcfvx.supabase.co/functions/v1/mercadopago-webhook",
-          back_urls: {
-            success: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=success`,
-            failure: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=failure`,
-            pending: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=pending`,
-          },
-          auto_return: "approved",
-        }),
+    // Criar pagamento PIX no Mercado Pago
+    const response = await fetch("https://api.mercadopago.com/v1/payments", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": `${Date.now()}-${email.replace(/[^a-zA-Z0-9]/g, "")}`,
       },
-    );
+      body: JSON.stringify({
+        transaction_amount: Number(price),
+        description: `SeArrumaAI - ${photos} fotos`,
+        payment_method_id: "pix",
+        payer: {
+          email: email,
+          first_name: name.split(" ")[0],
+          last_name: name.split(" ").slice(1).join(" ") || "Cliente",
+        },
+        metadata: {
+          email: email,
+          name: name,
+          photos: photos,
+          price: price,
+          imageUrl: imageUrl || "",
+        },
+        notification_url:
+          "https://amufvgzrxeipylqmcfvx.supabase.co/functions/v1/mercadopago-webhook",
+      }),
+    });
 
-    const preference = await response.json();
+    const payment = await response.json();
     console.log("Mercado Pago Response Status:", response.status);
-    console.log(
-      "Mercado Pago Preference Response:",
-      JSON.stringify(preference, null, 2),
-    );
 
     if (!response.ok) {
-      console.error("Mercado Pago Error Details:", preference);
-      throw new Error(preference.message || "Erro ao criar preferência");
+      console.error("Mercado Pago Error Details:", payment);
+      throw new Error(payment.message || "Erro ao criar pagamento");
     }
 
     return NextResponse.json({
       success: true,
-      checkoutUrl: preference.init_point,
-      paymentId: preference.id,
+      paymentId: payment.id,
+      pix: {
+        qrcode: payment.point_of_interaction.transaction_data.qr_code,
+        qrcode_base64:
+          payment.point_of_interaction.transaction_data.qr_code_base64,
+        ticket_url: payment.point_of_interaction.transaction_data.ticket_url,
+      },
     });
   } catch (error: unknown) {
     const errorMessage =

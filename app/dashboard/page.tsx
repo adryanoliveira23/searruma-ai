@@ -21,6 +21,15 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { supabase } from "@/lib/supabase";
+
+interface Order {
+  id: string;
+  result_url: string | null;
+  status: string;
+  created_at: string;
+  image_url: string | null;
+}
 
 export default function RedesignedDashboard() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -28,7 +37,18 @@ export default function RedesignedDashboard() {
   const [result, setResult] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchOrders = async (userEmail: string) => {
+    if (!userEmail) return;
+    const { data } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("email", userEmail.toLowerCase().trim())
+      .order("created_at", { ascending: false });
+    setOrders(data || []);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,6 +81,7 @@ export default function RedesignedDashboard() {
       const data = await response.json();
       if (data.success) {
         setResult(data.resultImage);
+        fetchOrders(email); // Refresh orders
       } else {
         alert("Erro ao processar: " + data.error);
       }
@@ -110,17 +131,6 @@ export default function RedesignedDashboard() {
                   icon: <ImageIcon size={20} />,
                   active: true,
                 },
-                {
-                  name: "Histórico",
-                  icon: <History size={20} />,
-                  active: false,
-                },
-                {
-                  name: "Minhas Compras",
-                  icon: <CreditCard size={20} />,
-                  active: false,
-                },
-                { name: "Conta", icon: <User size={20} />, active: false },
               ].map((item) => (
                 <button
                   key={item.name}
@@ -129,6 +139,49 @@ export default function RedesignedDashboard() {
                   {item.icon} {item.name}
                 </button>
               ))}
+
+              {/* Real Order History */}
+              {orders.length > 0 && (
+                <div className="mt-8 space-y-4">
+                  <p className="px-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Histórico Recente
+                  </p>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto px-2">
+                    {orders.map((order) => (
+                      <button
+                        key={order.id}
+                        onClick={() =>
+                          order.result_url && setResult(order.result_url)
+                        }
+                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all text-left"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0">
+                          {order.result_url ? (
+                            <img
+                              src={order.result_url}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <ImageIcon size={16} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold dark:text-white truncate">
+                            {new Date(order.created_at).toLocaleDateString(
+                              "pt-BR",
+                            )}
+                          </p>
+                          <p className="text-[10px] text-slate-400 uppercase font-black">
+                            {order.status}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </nav>
           </div>
 

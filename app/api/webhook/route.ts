@@ -48,32 +48,74 @@ export async function POST(req: Request) {
           return NextResponse.json({ received: true });
         }
 
-        // Enviar email de boas-vindas
+        // 1. Enviar email de boas-vindas (imediato)
         await sendWelcomeEmail(
           email,
           name || "Cliente",
           parseInt(photos || "3"),
         );
 
-        // Registrar no Supabase
+        // 2. Registrar no Supabase inicialmente
+        let orderId;
         try {
-          await supabaseAdmin.from("orders").insert([
-            {
-              email: email,
-              name: name || "Cliente",
-              photos: parseInt(photos || "3"),
-              amount: price || "0",
-              status: "approved",
-              payment_id: paymentId,
-              image_url: imageUrl || null,
-              created_at: new Date().toISOString(),
-            },
-          ]);
+          const { data: order, error: insertError } = await supabaseAdmin
+            .from("orders")
+            .insert([
+              {
+                email: email,
+                name: name || "Cliente",
+                photos: parseInt(photos || "3"),
+                amount: price || "0",
+                status: "approved",
+                payment_id: paymentId,
+                image_url: imageUrl || null,
+                created_at: new Date().toISOString(),
+              },
+            ])
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+          orderId = order.id;
         } catch (dbError) {
           console.error("Error logging to Supabase:", dbError);
         }
 
-        console.log(`Payment approved and processed for ${email}`);
+        // 3. Processar Imagem com AI em background
+        // Nota: Idealmente isso seria uma Edge Function ou Queue,
+        // mas para este MVP faremos aqui mesmo ou via fetch interno.
+        if (imageUrl && orderId) {
+          try {
+            console.log("Starting AI processing for order:", orderId);
+
+            // Simular processamento (ou chamar Gemini)
+            // Para produção, isso deveria ser assíncrono para o MP não dar timeout
+            const { processImageWithAI } = await import("@/lib/gemini");
+            const { sendResultEmail } = await import("@/lib/mail");
+
+            // Transformar a imagem (passando a URL para o Gemini se ele suportar,
+            // ou baixando e passando base64)
+            const resultImageUrl = await processImageWithAI(imageUrl);
+
+            // Atualizar pedido com o resultado
+            await supabaseAdmin
+              .from("orders")
+              .update({
+                result_url: resultImageUrl,
+                status: "completed",
+              })
+              .eq("id", orderId);
+
+            // Enviar email com o resultado
+            await sendResultEmail(email, name || "Cliente", resultImageUrl);
+
+            console.log(`AI processing completed for ${email}`);
+          } catch (aiError) {
+            console.error("Error in AI processing:", aiError);
+          }
+        }
+
+        console.log(`Payment processed for ${email}`);
       }
     }
 
