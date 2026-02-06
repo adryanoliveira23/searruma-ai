@@ -64,23 +64,37 @@ function CheckoutForm() {
   };
 
   const uploadImage = async (file: File): Promise<string> => {
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-    const filePath = `uploads/${fileName}`;
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `uploads/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("user-images")
-      .upload(filePath, file);
+      const { error: uploadError } = await supabase.storage
+        .from("user-images")
+        .upload(filePath, file);
 
-    if (uploadError) {
-      throw new Error("Erro ao subir imagem: " + uploadError.message);
+      if (uploadError) {
+        throw new Error("Erro ao subir imagem: " + uploadError.message);
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("user-images").getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro desconhecido";
+      if (
+        message.includes("Load failed") ||
+        message.includes("Failed to fetch") ||
+        message.includes("NetworkError")
+      ) {
+        throw new Error(
+          "Erro de conexão. Verifique sua internet e tente novamente.",
+        );
+      }
+      throw err;
     }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("user-images").getPublicUrl(filePath);
-
-    return publicUrl;
   };
 
   const handleCopyPix = () => {
@@ -153,9 +167,20 @@ function CheckoutForm() {
       setReceiptFile(null);
       setReceiptPreview(null);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Erro ao enviar comprovante",
-      );
+      console.error("Erro ao enviar comprovante:", err);
+      const message =
+        err instanceof Error ? err.message : "Erro ao enviar comprovante";
+      if (
+        message.includes("Load failed") ||
+        message.includes("Failed to fetch") ||
+        message.includes("NetworkError")
+      ) {
+        setError(
+          "Erro de conexão. Verifique sua internet e tente enviar novamente.",
+        );
+      } else {
+        setError(message);
+      }
     } finally {
       setReceiptUploading(false);
     }
@@ -193,7 +218,7 @@ function CheckoutForm() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({})); // Catch JSON parse errors
         throw new Error(data.error || "Erro ao processar pagamento");
       }
 
@@ -214,10 +239,22 @@ function CheckoutForm() {
         // Limpar interval após 10 minutos ou redirecionamento
         setTimeout(() => clearInterval(interval), 600000);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro inesperado");
+    } catch (err: unknown) {
+      console.error("Erro no checkout:", err);
       setLoading(false);
       setUploading(false);
+
+      const message = err instanceof Error ? err.message : "Erro inesperado";
+
+      if (
+        message.includes("Load failed") ||
+        message.includes("Failed to fetch") ||
+        message.includes("NetworkError")
+      ) {
+        setError("Erro de conexão. Verifique sua internet e tente novamente.");
+      } else {
+        setError(message);
+      }
     }
   };
 
