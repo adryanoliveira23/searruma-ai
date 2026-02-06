@@ -5,7 +5,6 @@ import Hero from "@/components/Hero";
 import Pricing from "@/components/Pricing";
 import Footer from "@/components/Footer";
 import FloatingSupport from "@/components/FloatingSupport";
-import { Sparkles } from "lucide-react";
 
 export default function Home() {
   return (
@@ -16,31 +15,20 @@ export default function Home() {
       {/* Marketing Showcase Section */}
       <section className="py-12 bg-white dark:bg-slate-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-indigo-50 dark:bg-indigo-900/10 rounded-[3rem] overflow-hidden border border-indigo-100 dark:border-indigo-900/20 shadow-2xl shadow-indigo-600/5">
-            <div className="grid lg:grid-cols-2 items-center">
-              <div className="p-12 lg:p-20 space-y-8">
+          <div className="bg-indigo-50 dark:bg-indigo-900/10 rounded-[3rem] overflow-hidden border border-indigo-100 dark:border-indigo-900/20 shadow-2xl shadow-indigo-600/5 transition-all hover:shadow-indigo-600/10">
+            <div className="flex flex-col lg:flex-row items-center">
+              <div className="p-12 lg:p-20 lg:w-1/2 space-y-8">
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest">
-                  DESTAQUE DA SEMANA
+                  DESTAQUE
                 </div>
                 <h2 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
                   Ensaio Aniversário <br />
-                  <span className="text-indigo-600 italic">
-                    com Inteligência Artificial
-                  </span>
+                  <span className="text-indigo-600 italic">Premium</span>
                 </h2>
                 <p className="text-lg text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-                  Transforme fotos simples em um ensaio de luxo digno de
-                  revista. Cenários temáticos, iluminação profissional e alta
-                  resolução por um preço imbatível.
+                  Aproveite nosso cenário temático exclusivo para transformar
+                  suas fotos em recordações profissionais de alto nível.
                 </p>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-black text-slate-900 dark:text-white">
-                    R$ 10,00
-                  </span>
-                  <span className="text-slate-400 font-bold uppercase tracking-widest text-xs">
-                    Por Foto
-                  </span>
-                </div>
                 <button
                   onClick={() =>
                     document
@@ -52,19 +40,13 @@ export default function Home() {
                   Garantir meu Ensaio 🎁
                 </button>
               </div>
-              <div className="relative aspect-square lg:aspect-auto h-full min-h-[400px]">
+              <div className="lg:w-1/2 w-full aspect-square relative group">
                 <img
-                  src="https://img.freepik.com/fotos-premium/ensaio-feminino-aniversario-com-baloes-e-bolo_121837-9889.jpg?w=1000"
+                  src="/ensaio-aniversario.jpg"
                   alt="Ensaio Aniversário Criativo"
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-linear-to-t from-indigo-900/40 via-transparent to-transparent"></div>
-                <div className="absolute bottom-10 left-10 right-10 p-6 glass rounded-2xl border border-white/20">
-                  <p className="text-white text-xs font-bold flex items-center gap-2">
-                    <Sparkles size={14} className="text-amber-400" />
-                    Apenas hoje: Aproveite o cenário &quot;Golden Birthday&quot;
-                  </p>
-                </div>
+                <div className="absolute inset-0 bg-linear-to-t from-indigo-900/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
             </div>
           </div>
