@@ -484,6 +484,12 @@ export default function AdminPanel() {
                         Status
                       </th>
                       <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                        Foto
+                      </th>
+                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                        Comprovante
+                      </th>
+                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
                         Pacote
                       </th>
                       <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
@@ -570,6 +576,46 @@ export default function AdminPanel() {
                                   PIX ABANDONADO (&gt;1H)
                                 </span>
                               )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {order.image_url ? (
+                              <a
+                                href={order.image_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 transition-colors"
+                              >
+                                <img
+                                  src={order.image_url}
+                                  alt="Original"
+                                  className="w-full h-full object-cover"
+                                />
+                              </a>
+                            ) : (
+                              <span className="text-xs text-slate-400 font-medium">
+                                -
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {order.receipt_url ? (
+                              <a
+                                href={order.receipt_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 transition-colors"
+                              >
+                                <img
+                                  src={order.receipt_url}
+                                  alt="Comprovante"
+                                  className="w-full h-full object-cover"
+                                />
+                              </a>
+                            ) : (
+                              <span className="text-xs text-slate-400 font-medium">
+                                -
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <p className="text-sm font-bold text-slate-900">
