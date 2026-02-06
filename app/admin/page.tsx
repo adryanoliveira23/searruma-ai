@@ -11,12 +11,12 @@ import {
   AlertCircle,
   MessageCircle,
   Sparkles,
-  CheckCircle2,
   Clock,
   Eye,
   EyeOff,
   Filter,
   X,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -51,6 +51,10 @@ export default function AdminPanel() {
   const [packageFilter, setPackageFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  // Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,33 +97,6 @@ export default function AdminPanel() {
     }
   }, [isAuthenticated]);
 
-  const handleApprovePayment = async (orderId: string) => {
-    if (!confirm("Confirmar que o pagamento foi recebido?")) return;
-
-    try {
-      const response = await fetch("/api/admin/approve-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, status: "approved" }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Erro ao aprovar pagamento");
-      }
-
-      // Atualizar localmente
-      setOrders(
-        orders.map((o) =>
-          o.id === orderId ? { ...o, status: "approved" } : o,
-        ),
-      );
-    } catch (err) {
-      console.error("Error approving:", err);
-      alert(err instanceof Error ? err.message : "Erro ao aprovar");
-    }
-  };
-
   const fetchOrders = async () => {
     setLoading(true);
     try {
@@ -142,6 +119,52 @@ export default function AdminPanel() {
       if (error.hint) console.error("Hint:", error.hint);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!deleteOrderId) return;
+
+    try {
+      const response = await fetch("/api/admin/delete-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: deleteOrderId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erro ao excluir pedido");
+      }
+
+      setOrders(orders.filter((o) => o.id !== deleteOrderId));
+      setShowDeleteModal(false);
+      setDeleteOrderId(null);
+    } catch (err) {
+      console.error("Error deleting order:", err);
+      alert("Erro ao excluir pedido");
+    }
+  };
+
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    // Otimista
+    setOrders(
+      orders.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)),
+    );
+
+    try {
+      const response = await fetch("/api/admin/update-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, status: newStatus }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erro ao atualizar status");
+      }
+    } catch (err) {
+      console.error("Error updating status:", err);
+      alert("Erro ao atualizar status");
+      fetchOrders(); // Reverter
     }
   };
 
@@ -445,211 +468,190 @@ export default function AdminPanel() {
         {/* Tab content placeholders */}
         {activeTab === "generator" && <AdminGenerator />}
         {activeTab === "orders" && (
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Cliente
-                    </th>
-                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Email
-                    </th>
-                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Foto Original
-                    </th>
-                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Comprovante
-                    </th>
-                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Pacote
-                    </th>
-                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Data
-                    </th>
-                    <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest text-right">
-                      Ação
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {loading ? (
+          <>
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <td
-                        colSpan={8}
-                        className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse"
-                      >
-                        Carregando pedidos...
-                      </td>
+                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                        Cliente
+                      </th>
+                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                        Email
+                      </th>
+                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                        Status
+                      </th>
+                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                        Pacote
+                      </th>
+                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
+                        Data
+                      </th>
+                      <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest text-right">
+                        Ação
+                      </th>
                     </tr>
-                  ) : filteredOrders.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={8}
-                        className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest"
-                      >
-                        Nenhum pedido encontrado.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredOrders.map((order) => (
-                      <tr
-                        key={order.id}
-                        className="hover:bg-slate-50 transition-colors group"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black">
-                              {order.name.charAt(0)}
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-slate-900">
-                                {order.name}
-                              </p>
-                              {order.whatsapp && (
-                                <p className="text-[10px] text-emerald-600 font-bold">
-                                  WA: {order.whatsapp}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-xs font-medium text-slate-500">
-                            {order.email}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4">
-                          {order.image_url ? (
-                            <a
-                              href={order.image_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="relative block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-indigo-600 transition-all group-hover:scale-105"
-                              title="Foto Original"
-                            >
-                              <img
-                                src={order.image_url}
-                                alt="Original"
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <ExternalLink
-                                  size={12}
-                                  className="text-white"
-                                />
-                              </div>
-                            </a>
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300">
-                              <AlertCircle size={14} />
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {order.receipt_url ? (
-                            <a
-                              href={order.receipt_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="relative block w-12 h-12 rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50 hover:ring-2 hover:ring-emerald-600 transition-all group-hover:scale-105"
-                              title="Ver Comprovante"
-                            >
-                              <img
-                                src={order.receipt_url}
-                                alt="Comprovante"
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-emerald-600/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <CreditCard size={12} className="text-white" />
-                              </div>
-                            </a>
-                          ) : (
-                            <div
-                              className="w-12 h-12 rounded-lg bg-amber-50 border border-dashed border-amber-200 flex flex-col items-center justify-center text-amber-400"
-                              title="Sem Comprovante"
-                            >
-                              <CreditCard size={14} />
-                              <span className="text-[8px] font-black">N/A</span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-3 py-1 text-[10px] font-black rounded-full ${
-                              order.status === "approved"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : order.status === "pending"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {order.status === "approved"
-                              ? "PAGO"
-                              : order.status === "pending"
-                                ? "PENDENTE"
-                                : "CANCELADO"}
-                          </span>
-                          {order.status === "pending" &&
-                            new Date().getTime() -
-                              new Date(order.created_at).getTime() >
-                              3600000 && (
-                              <span className="block mt-1 text-[9px] font-black text-red-500 animate-pulse">
-                                PIX ABANDONADO (&gt;1H)
-                              </span>
-                            )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm font-bold text-slate-900">
-                            {order.photos} Fotos
-                          </p>
-                          <p className="text-[10px] text-slate-400">
-                            R$ {order.amount}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                          {new Date(order.created_at).toLocaleDateString(
-                            "pt-BR",
-                            {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            },
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right space-x-2">
-                          {order.status !== "approved" && (
-                            <button
-                              onClick={() => handleApprovePayment(order.id)}
-                              className="inline-flex p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-all"
-                              title="Aprovar Pagamento"
-                            >
-                              <CheckCircle2 size={18} />
-                            </button>
-                          )}
-                          {order.whatsapp && (
-                            <a
-                              href={`https://wa.me/${order.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${order.name}, vimos que você gerou um Pix para o SeArrumaAI mas não finalizou o pagamento. Podemos te ajudar em algo?`)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all"
-                              title="Contato WhatsApp"
-                            >
-                              <MessageCircle size={18} />
-                            </a>
-                          )}
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {loading ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse"
+                        >
+                          Carregando pedidos...
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : filteredOrders.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest"
+                        >
+                          Nenhum pedido encontrado.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOrders.map((order) => (
+                        <tr
+                          key={order.id}
+                          className="hover:bg-slate-50 transition-colors group"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black">
+                                {order.name.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-slate-900">
+                                  {order.name}
+                                </p>
+                                {order.whatsapp && (
+                                  <p className="text-[10px] text-emerald-600 font-bold">
+                                    WA: {order.whatsapp}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-xs font-medium text-slate-500">
+                              {order.email}
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <select
+                              value={order.status}
+                              onChange={(e) =>
+                                handleStatusChange(order.id, e.target.value)
+                              }
+                              className={`px-3 py-1 text-[10px] font-black rounded-full border-none focus:ring-2 focus:ring-offset-1 cursor-pointer transition-all appearance-none pr-8 bg-no-repeat bg-[right_0.5rem_center] bg-[length:0.75em_0.75em] ${
+                                order.status === "approved"
+                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 focus:ring-emerald-500"
+                                  : order.status === "pending"
+                                    ? "bg-amber-100 text-amber-700 hover:bg-amber-200 focus:ring-amber-500"
+                                    : "bg-red-100 text-red-700 hover:bg-red-200 focus:ring-red-500"
+                              }`}
+                              style={{
+                                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                              }}
+                            >
+                              <option value="approved">PAGO</option>
+                              <option value="pending">PENDENTE</option>
+                              <option value="cancelled">CANCELADO</option>
+                            </select>
+                            {order.status === "pending" &&
+                              new Date().getTime() -
+                                new Date(order.created_at).getTime() >
+                                3600000 && (
+                                <span className="block mt-1 text-[9px] font-black text-red-500 animate-pulse">
+                                  PIX ABANDONADO (&gt;1H)
+                                </span>
+                              )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-bold text-slate-900">
+                              {order.photos} Fotos
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              R$ {order.amount}
+                            </p>
+                          </td>
+                          <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                            {new Date(order.created_at).toLocaleDateString(
+                              "pt-BR",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2 flex justify-end items-center">
+                            {order.whatsapp && (
+                              <a
+                                href={`https://wa.me/${order.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${order.name}, vimos que você gerou um Pix para o SeArrumaAI mas não finalizou o pagamento. Podemos te ajudar em algo?`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all"
+                                title="Contato WhatsApp"
+                              >
+                                <MessageCircle size={18} />
+                              </a>
+                            )}
+                            <button
+                              onClick={() => {
+                                setDeleteOrderId(order.id);
+                                setShowDeleteModal(true);
+                              }}
+                              className="inline-flex p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-all"
+                              title="Remover Pedido"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+
+            {/* Confirmation Modal */}
+            {showDeleteModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
+                  <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 mb-4 mx-auto">
+                    <AlertCircle size={24} />
+                  </div>
+                  <h3 className="text-lg font-black text-slate-900 text-center mb-2">
+                    Confirmar Exclusão
+                  </h3>
+                  <p className="text-sm text-slate-500 text-center mb-6">
+                    Tem certeza que deseja remover este pedido? Esta ação não
+                    pode ser desfeita.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setShowDeleteModal(false)}
+                      className="w-full py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleDeleteOrder}
+                      className="w-full py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
