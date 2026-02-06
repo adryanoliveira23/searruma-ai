@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(req: Request) {
   try {
@@ -10,12 +11,6 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-
-    // Debug: log env var presence
-    console.log(
-      "MP_ACCESS_TOKEN prefix:",
-      process.env.MP_ACCESS_TOKEN?.substring(0, 10),
-    );
 
     // Criar pagamento PIX no Mercado Pago
     const response = await fetch("https://api.mercadopago.com/v1/payments", {
@@ -49,11 +44,31 @@ export async function POST(req: Request) {
     });
 
     const payment = await response.json();
-    console.log("Mercado Pago Response Status:", response.status);
 
     if (!response.ok) {
       console.error("Mercado Pago Error Details:", payment);
       throw new Error(payment.message || "Erro ao criar pagamento");
+    }
+
+    // Registrar no Supabase IMEDIATAMENTE para o admin ver
+    const { error: dbError } = await supabaseAdmin.from("orders").insert([
+      {
+        email: email,
+        name: name || "Cliente",
+        whatsapp: whatsapp || null,
+        photos: parseInt(photos || "1"),
+        amount: price.toString(),
+        status: "pending",
+        payment_id: payment.id.toString(),
+        image_url: imageUrl || null,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+
+    if (dbError) {
+      console.error("Erro ao salvar pedido inicial:", dbError);
+      // Não travamos o fluxo do usuário se falhar em salvar,
+      // mas o admin pode não ver até o webhook chegar.
     }
 
     return NextResponse.json({
