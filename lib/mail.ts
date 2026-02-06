@@ -1,5 +1,11 @@
 import nodemailer from "nodemailer";
 
+if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  console.warn(
+    "⚠️ Warning: GMAIL_USER or GMAIL_APP_PASSWORD not set in environment.",
+  );
+}
+
 const gmailTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {

@@ -8,11 +8,11 @@ import {
   Lock,
   Search,
   ExternalLink,
-  ChevronRight,
-  Clock,
   AlertCircle,
   MessageCircle,
   Sparkles,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -25,6 +25,7 @@ interface Order {
   status: string;
   payment_id: string;
   image_url: string | null;
+  receipt_url: string | null;
   whatsapp: string | null;
   created_at: string;
 }
@@ -55,6 +56,33 @@ export default function AdminPanel() {
       fetchOrders();
     }
   }, [isAuthenticated]);
+
+  const handleApprovePayment = async (orderId: number) => {
+    if (!confirm("Confirmar que o pagamento foi recebido?")) return;
+
+    try {
+      const response = await fetch("/api/admin/approve-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, status: "approved" }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao aprovar pagamento");
+      }
+
+      // Atualizar localmente
+      setOrders(
+        orders.map((o) =>
+          o.id === orderId ? { ...o, status: "approved" } : o,
+        ),
+      );
+    } catch (err) {
+      console.error("Error approving:", err);
+      alert(err instanceof Error ? err.message : "Erro ao aprovar");
+    }
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -280,7 +308,7 @@ export default function AdminPanel() {
                       Cliente
                     </th>
                     <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
-                      Foto Original
+                      Fotos (Original / Comprovante)
                     </th>
                     <th className="px-6 py-4 text-xs font-black uppercase text-slate-400 tracking-widest">
                       Status
@@ -342,30 +370,65 @@ export default function AdminPanel() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          {order.image_url ? (
-                            <a
-                              href={order.image_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="relative block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-indigo-600 transition-all group-hover:scale-105"
-                            >
-                              <img
-                                src={order.image_url}
-                                alt="Original"
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <ExternalLink
-                                  size={12}
-                                  className="text-white"
+                          <div className="flex gap-2">
+                            {order.image_url ? (
+                              <a
+                                href={order.image_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="relative block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-indigo-600 transition-all group-hover:scale-105"
+                                title="Foto Original"
+                              >
+                                <img
+                                  src={order.image_url}
+                                  alt="Original"
+                                  className="w-full h-full object-cover"
                                 />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <ExternalLink
+                                    size={12}
+                                    className="text-white"
+                                  />
+                                </div>
+                              </a>
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300">
+                                <AlertCircle size={14} />
                               </div>
-                            </a>
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300">
-                              <AlertCircle size={14} />
-                            </div>
-                          )}
+                            )}
+
+                            {order.receipt_url ? (
+                              <a
+                                href={order.receipt_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="relative block w-12 h-12 rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50 hover:ring-2 hover:ring-emerald-600 transition-all group-hover:scale-105"
+                                title="Ver Comprovante"
+                              >
+                                <img
+                                  src={order.receipt_url}
+                                  alt="Comprovante"
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-emerald-600/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <CreditCard
+                                    size={12}
+                                    className="text-white"
+                                  />
+                                </div>
+                              </a>
+                            ) : (
+                              <div
+                                className="w-12 h-12 rounded-lg bg-amber-50 border border-dashed border-amber-200 flex flex-col items-center justify-center text-amber-400"
+                                title="Sem Comprovante"
+                              >
+                                <CreditCard size={14} />
+                                <span className="text-[8px] font-black">
+                                  N/A
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span
@@ -409,20 +472,26 @@ export default function AdminPanel() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
+                          {order.status !== "approved" && (
+                            <button
+                              onClick={() => handleApprovePayment(order.id)}
+                              className="inline-flex p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-all"
+                              title="Aprovar Pagamento"
+                            >
+                              <CheckCircle2 size={18} />
+                            </button>
+                          )}
                           {order.whatsapp && (
                             <a
                               href={`https://wa.me/${order.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${order.name}, vimos que você gerou um Pix para o SeArrumaAI mas não finalizou o pagamento. Podemos te ajudar em algo?`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
-                              title="Contact via WhatsApp"
+                              className="inline-flex p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all"
+                              title="Contato WhatsApp"
                             >
                               <MessageCircle size={18} />
                             </a>
                           )}
-                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
-                            <ChevronRight size={18} />
-                          </button>
                         </td>
                       </tr>
                     ))
@@ -454,6 +523,9 @@ function AdminGenerator() {
 
   const handleGenerate = async () => {
     if (!image) return alert("Selecione uma imagem");
+    if (!email)
+      return alert("Informe o e-mail do cliente para envio do resultado");
+
     setProcessing(true);
     setResult(null);
     try {
@@ -462,7 +534,7 @@ function AdminGenerator() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image: image.split(",")[1],
-          email: email || "admin@teste.com",
+          email: email,
           name: "Admin",
         }),
       });

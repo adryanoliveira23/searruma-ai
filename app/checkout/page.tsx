@@ -40,6 +40,11 @@ function CheckoutForm() {
     paymentId: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [receiptSent, setReceiptSent] = useState(false);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -99,6 +104,60 @@ function CheckoutForm() {
       }
     } catch (err) {
       console.error("Error checking status:", err);
+    }
+  };
+
+  const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        setError("O comprovante deve ter no máximo 10MB");
+        return;
+      }
+      setReceiptFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReceiptPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      setError(null);
+    }
+  };
+
+  const handleSendReceipt = async () => {
+    if (!receiptFile || !pixData) return;
+
+    setReceiptUploading(true);
+    setError(null);
+
+    try {
+      // 1. Upload do comprovante
+      const receiptUrl = await uploadImage(receiptFile);
+
+      // 2. Avisar API
+      const response = await fetch("/api/upload-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: pixData.paymentId,
+          receiptUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao enviar comprovante");
+      }
+
+      setReceiptSent(true);
+      setReceiptFile(null);
+      setReceiptPreview(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Erro ao enviar comprovante",
+      );
+    } finally {
+      setReceiptUploading(false);
     }
   };
 
@@ -232,6 +291,93 @@ function CheckoutForm() {
                 Aguardando confirmação do pagamento...
               </p>
             </div>
+
+            {/* Receipt Upload Section */}
+            {!receiptSent ? (
+              <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <p className="text-center text-sm font-black text-slate-900 dark:text-white">
+                  Já pagou? Envie seu comprovante aqui:
+                </p>
+                <div
+                  onClick={() =>
+                    !receiptPreview && receiptInputRef.current?.click()
+                  }
+                  className={`relative border-2 border-dashed rounded-2xl p-6 transition-all cursor-pointer group flex flex-col items-center justify-center text-center ${
+                    receiptPreview
+                      ? "border-emerald-500/50 bg-emerald-50/10"
+                      : "border-slate-200 dark:border-slate-800 hover:border-indigo-600/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    ref={receiptInputRef}
+                    onChange={handleReceiptChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+
+                  {receiptPreview ? (
+                    <div className="relative w-full max-w-[150px] mx-auto">
+                      <img
+                        src={receiptPreview}
+                        alt="Comprovante"
+                        className="w-full aspect-square object-cover rounded-xl shadow-lg"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReceiptFile(null);
+                          setReceiptPreview(null);
+                        }}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-lg"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload size={20} className="text-slate-400 mb-2" />
+                      <p className="text-xs font-bold text-slate-500">
+                        Selecionar Comprovante
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                {receiptFile && (
+                  <button
+                    onClick={handleSendReceipt}
+                    disabled={receiptUploading}
+                    className="w-full py-3 bg-emerald-600 text-white rounded-xl font-black text-xs shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {receiptUploading ? (
+                      <>
+                        <Loader2 className="animate-spin" size={14} />{" "}
+                        ENVIANDO...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={14} /> ENVIAR COMPROVANTE
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 rounded-3xl text-center space-y-2 animate-in fade-in zoom-in">
+                <div className="w-12 h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg shadow-emerald-500/20">
+                  <CheckCircle2 size={24} />
+                </div>
+                <h4 className="text-sm font-black text-emerald-900 dark:text-emerald-400">
+                  Comprovante Recebido!
+                </h4>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-500 font-medium">
+                  Nossa equipe irá confirmar seu pagamento em breve e você
+                  receberá o resultado por e-mail e no dashboard.
+                </p>
+              </div>
+            )}
 
             <p className="text-center text-[11px] text-slate-400">
               Assim que o pagamento for confirmado, você será redirecionado

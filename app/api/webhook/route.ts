@@ -38,7 +38,12 @@ export async function POST(req: Request) {
       const paymentData = await mpResponse.json();
       const { status, metadata } = paymentData;
 
-      console.log(`Payment ${paymentId} status: ${status}`);
+      console.log(`Payment processed: ID=${paymentId}, Status=${status}`);
+
+      if (!metadata) {
+        console.error("Critical: No metadata found in payment data");
+        return NextResponse.json({ received: true });
+      }
 
       const { email, name, whatsapp, photos, price, imageUrl } = metadata;
 
@@ -85,6 +90,7 @@ export async function POST(req: Request) {
           parseInt(photos || "3"),
         );
 
+        /* 
         // 2. Processar Imagem com AI em background
         // Nota: Idealmente isso seria uma Edge Function ou Queue,
         // mas para este MVP faremos aqui mesmo ou via fetch interno.
@@ -118,6 +124,10 @@ export async function POST(req: Request) {
             console.error("Error in AI processing:", aiError);
           }
         }
+        */
+        console.log(
+          `Payment received for ${email}. Waiting for manual approval.`,
+        );
 
         console.log(`Payment processed for ${email}`);
       }

@@ -4,7 +4,14 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const email = searchParams.get("email") || "teste@exemplo.com";
+  const email = searchParams.get("email");
+
+  if (!email) {
+    return NextResponse.json(
+      { error: "Email parameter is required" },
+      { status: 400 },
+    );
+  }
 
   try {
     console.log("--- Teste de Gemini Manual ---");
@@ -33,10 +40,17 @@ export async function GET(req: Request) {
 
     if (insertError) throw insertError;
 
+    console.log("Using email for test:", email);
+
     // 2. Chamar o processamento
     const resultImageUrl = await processImageWithAI(imageUrl);
 
-    // 3. Atualizar o pedido
+    // 3. Enviar email de teste
+    console.log("Triggering test email to:", email);
+    const { sendWelcomeEmail } = await import("@/lib/mail");
+    await sendWelcomeEmail(email, "Cliente Teste", 1);
+
+    // 4. Atualizar o pedido
     await supabaseAdmin
       .from("orders")
       .update({
