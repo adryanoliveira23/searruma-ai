@@ -14,6 +14,7 @@ import {
   Upload,
   X,
   Loader2,
+  Phone,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -27,6 +28,7 @@ function CheckoutForm() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -124,6 +126,7 @@ function CheckoutForm() {
         body: JSON.stringify({
           email,
           name,
+          whatsapp,
           photos: parseInt(photos),
           price: parseFloat(price),
           imageUrl,
@@ -274,6 +277,25 @@ function CheckoutForm() {
                     placeholder="Seu melhor e-mail"
                   />
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                WhatsApp (Número de Telefone)
+              </label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
+                  <Phone size={16} />
+                </div>
+                <input
+                  type="tel"
+                  required
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  className="block w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 outline-none transition-all dark:text-white text-sm"
+                  placeholder="(00) 00000-0000"
+                />
               </div>
             </div>
 

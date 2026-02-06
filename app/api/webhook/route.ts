@@ -40,14 +40,44 @@ export async function POST(req: Request) {
 
       console.log(`Payment ${paymentId} status: ${status}`);
 
-      if (status === "approved") {
-        const { email, name, photos, price, imageUrl } = metadata;
+      const { email, name, whatsapp, photos, price, imageUrl } = metadata;
 
-        if (!email) {
-          console.error("No email found in payment metadata");
-          return NextResponse.json({ received: true });
-        }
+      if (!email) {
+        console.error("No email found in payment metadata");
+        return NextResponse.json({ received: true });
+      }
 
+      // Registrar ou atualizar no Supabase (Upsert para lidar com pending -> approved)
+      let orderId;
+      try {
+        const { data: order, error: upsertError } = await supabaseAdmin
+          .from("orders")
+          .upsert(
+            [
+              {
+                email: email,
+                name: name || "Cliente",
+                whatsapp: whatsapp || null,
+                photos: parseInt(photos || "3"),
+                amount: price || "0",
+                status: status === "approved" ? "approved" : "pending",
+                payment_id: paymentId,
+                image_url: imageUrl || null,
+                created_at: new Date().toISOString(),
+              },
+            ],
+            { onConflict: "payment_id" },
+          )
+          .select()
+          .single();
+
+        if (upsertError) throw upsertError;
+        orderId = order.id;
+      } catch (dbError) {
+        console.error("Error upserting to Supabase:", dbError);
+      }
+
+      if (status === "approved" && email) {
         // 1. Enviar email de boas-vindas (imediato)
         await sendWelcomeEmail(
           email,
@@ -55,33 +85,7 @@ export async function POST(req: Request) {
           parseInt(photos || "3"),
         );
 
-        // 2. Registrar no Supabase inicialmente
-        let orderId;
-        try {
-          const { data: order, error: insertError } = await supabaseAdmin
-            .from("orders")
-            .insert([
-              {
-                email: email,
-                name: name || "Cliente",
-                photos: parseInt(photos || "3"),
-                amount: price || "0",
-                status: "approved",
-                payment_id: paymentId,
-                image_url: imageUrl || null,
-                created_at: new Date().toISOString(),
-              },
-            ])
-            .select()
-            .single();
-
-          if (insertError) throw insertError;
-          orderId = order.id;
-        } catch (dbError) {
-          console.error("Error logging to Supabase:", dbError);
-        }
-
-        // 3. Processar Imagem com AI em background
+        // 2. Processar Imagem com AI em background
         // Nota: Idealmente isso seria uma Edge Function ou Queue,
         // mas para este MVP faremos aqui mesmo ou via fetch interno.
         if (imageUrl && orderId) {

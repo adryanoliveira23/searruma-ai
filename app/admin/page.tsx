@@ -11,6 +11,8 @@ import {
   ChevronRight,
   Clock,
   AlertCircle,
+  MessageCircle,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -23,6 +25,7 @@ interface Order {
   status: string;
   payment_id: string;
   image_url: string | null;
+  whatsapp: string | null;
   created_at: string;
 }
 
@@ -30,9 +33,9 @@ export default function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "orders">(
-    "overview",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "users" | "orders" | "generator"
+  >("overview");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -163,6 +166,12 @@ export default function AdminPanel() {
           >
             <CreditCard size={20} /> Pedidos/Logística
           </button>
+          <button
+            onClick={() => setActiveTab("generator")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === "generator" ? "bg-indigo-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50"}`}
+          >
+            <Sparkles size={20} /> Gerador Gratuito
+          </button>
         </nav>
 
         <button
@@ -180,7 +189,9 @@ export default function AdminPanel() {
             <h2 className="text-3xl font-black text-slate-900 capitalize tracking-tight">
               {activeTab === "overview"
                 ? "Dashboard Admin"
-                : "Pedidos e Logística"}
+                : activeTab === "generator"
+                  ? "Gerador IA"
+                  : "Pedidos e Logística"}
             </h2>
             <p className="text-slate-500 text-sm mt-1">
               Gerencie a plataforma em tempo real.
@@ -258,6 +269,7 @@ export default function AdminPanel() {
         )}
 
         {/* Tab content placeholders */}
+        {activeTab === "generator" && <AdminGenerator />}
         {activeTab === "orders" && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -321,6 +333,11 @@ export default function AdminPanel() {
                               <p className="text-[10px] text-slate-400">
                                 {order.email}
                               </p>
+                              {order.whatsapp && (
+                                <p className="text-[10px] text-emerald-600 font-bold">
+                                  WA: {order.whatsapp}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -364,6 +381,14 @@ export default function AdminPanel() {
                               ? "PAGO"
                               : order.status.toUpperCase()}
                           </span>
+                          {order.status === "pending" &&
+                            new Date().getTime() -
+                              new Date(order.created_at).getTime() >
+                              3600000 && (
+                              <span className="block mt-1 text-[9px] font-black text-red-500 animate-pulse">
+                                PIX ABANDONADO (&gt;1H)
+                              </span>
+                            )}
                         </td>
                         <td className="px-6 py-4">
                           <p className="text-sm font-bold text-slate-900">
@@ -383,7 +408,18 @@ export default function AdminPanel() {
                             },
                           )}
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4 text-right space-x-2">
+                          {order.whatsapp && (
+                            <a
+                              href={`https://wa.me/${order.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${order.name}, vimos que você gerou um Pix para o SeArrumaAI mas não finalizou o pagamento. Podemos te ajudar em algo?`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
+                              title="Contact via WhatsApp"
+                            >
+                              <MessageCircle size={18} />
+                            </a>
+                          )}
                           <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
                             <ChevronRight size={18} />
                           </button>
@@ -397,6 +433,153 @@ export default function AdminPanel() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function AdminGenerator() {
+  const [image, setImage] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!image) return alert("Selecione uma imagem");
+    setProcessing(true);
+    setResult(null);
+    try {
+      const response = await fetch("/api/process-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: image.split(",")[1],
+          email: email || "admin@teste.com",
+          name: "Admin",
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setResult(data.resultImage);
+      } else {
+        alert("Erro: " + data.error);
+      }
+    } catch (err) {
+      console.error("Erro na geração:", err);
+      alert("Erro na geração");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-8">
+      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200">
+        <h3 className="text-xl font-black text-slate-900 mb-6">Configuração</h3>
+
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Foto Original
+            </label>
+            <div
+              onClick={() => document.getElementById("admin-upload")?.click()}
+              className="aspect-square bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all overflow-hidden p-2"
+            >
+              {image ? (
+                <img
+                  src={image}
+                  className="w-full h-full object-cover rounded-2xl"
+                  alt="Original"
+                />
+              ) : (
+                <div className="text-center p-6">
+                  <div className="text-4xl mb-2">📸</div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    Clique para Upload
+                  </p>
+                </div>
+              )}
+            </div>
+            <input
+              id="admin-upload"
+              type="file"
+              className="hidden"
+              onChange={handleFileChange}
+              accept="image/*"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Email do Cliente (Opcional)
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 px-5 py-4 rounded-2xl focus:ring-4 focus:ring-indigo-600/5 focus:border-indigo-600 outline-none transition-all text-slate-900"
+              placeholder="cliente@email.com"
+            />
+          </div>
+
+          <button
+            onClick={handleGenerate}
+            disabled={!image || processing}
+            className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-sm shadow-xl shadow-indigo-600/20 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+          >
+            {processing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                Processando...
+              </>
+            ) : (
+              <>
+                <Sparkles size={18} /> Gerar Agora
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 flex flex-col">
+        <h3 className="text-xl font-black text-slate-900 mb-6">Resultado</h3>
+        <div className="flex-grow flex items-center justify-center bg-slate-50 rounded-3xl border border-slate-100 overflow-hidden relative min-h-[400px]">
+          {result ? (
+            <div className="relative w-full h-full group">
+              <img
+                src={result}
+                className="w-full h-full object-cover"
+                alt="Resultado"
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity gap-4">
+                <a
+                  href={result}
+                  download
+                  className="bg-white text-slate-900 px-6 py-3 rounded-xl font-black text-xs hover:scale-105 transition-transform"
+                >
+                  Download HD
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="text-5xl mb-4 grayscale opacity-50">✨</div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                Aguardando Geração
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

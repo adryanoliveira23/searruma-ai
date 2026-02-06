@@ -5,6 +5,7 @@ import Hero from "@/components/Hero";
 import Pricing from "@/components/Pricing";
 import Footer from "@/components/Footer";
 import FloatingSupport from "@/components/FloatingSupport";
+import { ArrowRight } from "lucide-react";
 
 export default function Home() {
   return (
@@ -165,6 +166,20 @@ export default function Home() {
                   </p>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-16 text-center">
+              <button
+                onClick={() =>
+                  document
+                    .getElementById("pricing")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
+                className="inline-flex items-center justify-center px-12 py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-lg shadow-2xl shadow-indigo-600/20 transition-all active:scale-95 group"
+              >
+                Começar Agora ✨
+                <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+              </button>
             </div>
           </div>
         </div>

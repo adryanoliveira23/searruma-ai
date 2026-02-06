@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 const gmailTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.GMAIL_USER || "portexzao@gmail.com",
+    user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
 });
@@ -14,7 +14,7 @@ export async function sendWelcomeEmail(
   photos: number,
 ) {
   const mailOptions = {
-    from: "SeArrumaAI <portexzao@gmail.com>",
+    from: `"SeArrumaAI" <${process.env.GMAIL_USER}>`,
     to: email,
     subject: "🎉 Bem-vindo ao SeArrumaAI!",
     html: `
@@ -51,11 +51,13 @@ export async function sendWelcomeEmail(
   };
 
   try {
-    await gmailTransporter.sendMail(mailOptions);
-    console.log(`Welcome email sent to ${email}`);
+    const info = await gmailTransporter.sendMail(mailOptions);
+    console.log(
+      `✅ Welcome email sent to ${email}. MessageId: ${info.messageId}`,
+    );
     return true;
   } catch (error) {
-    console.error("Error sending welcome email:", error);
+    console.error("❌ Error sending welcome email:", error);
     return false;
   }
 }
@@ -66,7 +68,7 @@ export async function sendResultEmail(
   imageUrl: string,
 ) {
   const mailOptions = {
-    from: "SeArrumaAI <portexzao@gmail.com>",
+    from: `"SeArrumaAI" <${process.env.GMAIL_USER}>`,
     to: email,
     subject: "🎉 Sua Foto Está Pronta!",
     html: `
@@ -99,11 +101,13 @@ export async function sendResultEmail(
   };
 
   try {
-    await gmailTransporter.sendMail(mailOptions);
-    console.log(`Result email sent to ${email}`);
+    const info = await gmailTransporter.sendMail(mailOptions);
+    console.log(
+      `✅ Result email sent to ${email}. MessageId: ${info.messageId}`,
+    );
     return true;
   } catch (error) {
-    console.error("Error sending result email:", error);
+    console.error("❌ Error sending result email:", error);
     return false;
   }
 }
